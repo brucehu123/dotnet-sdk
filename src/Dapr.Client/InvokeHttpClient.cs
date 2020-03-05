@@ -1,4 +1,4 @@
-// ------------------------------------------------------------
+﻿// ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
@@ -19,6 +19,7 @@ namespace Dapr
     /// </summary>
     public class InvokeHttpClient : InvokeClient
     {
+        private const string DaprDefaultEndpoint = "127.0.0.1";
         private readonly HttpClient client;
         private readonly JsonSerializerOptions serializerOptions;
 
@@ -65,7 +66,7 @@ namespace Dapr
                 throw new ArgumentNullException("The value cannot be null", nameof(data));
             }
 
-            var response = await this.MakeInvokeHttpRequest(serviceName, methodName, JsonSerializer.Serialize(data), cancellationToken).ConfigureAwait(false);
+            var response = await this.MakeInvokeHttpRequest(serviceName, methodName, JsonSerializer.Serialize(data, this.serializerOptions), cancellationToken).ConfigureAwait(false);
 
             if (response.Content == null || response.Content.Headers?.ContentLength == 0)
             {
@@ -139,15 +140,16 @@ namespace Dapr
                 throw new ArgumentNullException("The value cannot be null", nameof(data));
             }
 
-            await this.MakeInvokeHttpRequest(serviceName, methodName, JsonSerializer.Serialize(data), cancellationToken).ConfigureAwait(false);
+            await this.MakeInvokeHttpRequest(serviceName, methodName, JsonSerializer.Serialize(data, this.serializerOptions), cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<HttpResponseMessage> MakeInvokeHttpRequest(string serviceName, string methodName, string data, CancellationToken cancellationToken)
         {
-            var url = this.client.BaseAddress == null ? $"http://localhost:{DefaultHttpPort}{InvokePath}/{serviceName}/method/{methodName}" : $"{InvokePath}/{serviceName}/method/{methodName}";
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
-
-            request.Content = new StringContent(data);
+            var url = this.client.BaseAddress == null ? $"http://{DaprDefaultEndpoint}:{DefaultHttpPort}{InvokePath}/{serviceName}/method/{methodName}" : $"{InvokePath}/{serviceName}/method/{methodName}";
+            var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(data)
+            };
 
             var response = await this.client.SendAsync(request, cancellationToken).ConfigureAwait(false);
 

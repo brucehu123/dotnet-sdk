@@ -1,4 +1,4 @@
-// ------------------------------------------------------------
+﻿// ------------------------------------------------------------
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // ------------------------------------------------------------
@@ -14,6 +14,8 @@ namespace Dapr.Client.Test
 
     public class InvokeHttpClientTest
     {
+        private const string DaprDefaultEndpoint = "127.0.0.1";
+
         [Fact]
         public async Task InvokeMethodAsync_CanInvokeMethodWithReturnTypeAndData()
         {
@@ -47,6 +49,7 @@ namespace Dapr.Client.Test
             var invokedResponse = await task;
             invokedResponse.Should().BeNull();
         }
+
 
         [Fact]
         public async Task InvokeMethodAsync_CanInvokeMethodWithReturnTypeAndData_ThrowsExceptionForNonSuccess()
@@ -133,9 +136,47 @@ namespace Dapr.Client.Test
             return Task.FromResult(string.Empty);
         }
 
+        [Fact]
+        public async Task InvokeMethodAsync_WithNoReturnTypeAndData_UsesConfiguredJsonSerializerOptions()
+        {
+            var httpClient = new TestHttpClient();
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var invokeClient = new InvokeHttpClient(httpClient, jsonOptions);
+            var invokeRequest = new InvokeRequest() { RequestParameter = "Hello" };
+
+            var task = invokeClient.InvokeMethodAsync<InvokeRequest, InvokedResponse>("test", "test", invokeRequest);
+
+            httpClient.Requests.TryDequeue(out var entry).Should().BeTrue();
+            (await entry.Request.Content.ReadAsStringAsync()).Should().Be(JsonSerializer.Serialize(invokeRequest, jsonOptions));
+        }
+
+        [Fact]
+        public async Task InvokeMethodAsync_WithReturnTypeAndData_UsesConfiguredJsonSerializerOptions()
+        {
+            var httpClient = new TestHttpClient();
+            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+            var invokeClient = new InvokeHttpClient(httpClient, jsonOptions);
+            var invokeRequest = new InvokeRequest() { RequestParameter = "Hello " };
+            var invokedResponse = new InvokedResponse { Name = "Look, I was invoked!" };
+
+            var task = invokeClient.InvokeMethodAsync<InvokeRequest, InvokedResponse>("test", "test", invokeRequest);
+
+            httpClient.Requests.TryDequeue(out var entry).Should().BeTrue();
+
+            (await entry.Request.Content.ReadAsStringAsync()).Should().Be(JsonSerializer.Serialize(invokeRequest, jsonOptions));
+
+            entry.RespondWithJson(invokedResponse, jsonOptions);
+
+            var response = await task;
+
+            response.Name.Should().Be(invokedResponse.Name);
+        }
+
+
         private static string GetInvokeUrl(int port, string serviceName, string methodName)
         {
-            return $"http://localhost:{port}/v1.0/invoke/{serviceName}/method/{methodName}";
+            return $"http://{DaprDefaultEndpoint}:{port}/v1.0/invoke/{serviceName}/method/{methodName}";
         }
 
         private class InvokeRequest
